@@ -67,6 +67,29 @@ func AutoMigrate(service session.Service) error {
 	return nil
 }
 
+func filterMap(m map[string]any) map[string]any {
+	result := make(map[string]any)
+	for k, v := range m {
+		if v == nil {
+			continue
+		}
+		switch val := v.(type) {
+		case string:
+			if val != "" {
+				result[k] = v
+			}
+		case *string:
+			if val != nil && *val != "" {
+				result[k] = v
+			}
+		default:
+			// Keep all other types
+			result[k] = v
+		}
+	}
+	return result
+}
+
 // Create generates a session and inserts it to the db, implements session.Service
 func (s *databaseService) Create(ctx context.Context, req *session.CreateRequest) (*session.CreateResponse, error) {
 	if req.AppName == "" || req.UserID == "" {
@@ -109,19 +132,21 @@ func (s *databaseService) Create(ctx context.Context, req *session.CreateRequest
 		// apply state delta
 		if len(appDelta) > 0 {
 			maps.Copy(storageApp.State, appDelta)
+			storageApp.State = filterMap(storageApp.State)
 			if err := tx.Save(&storageApp).Error; err != nil {
 				return fmt.Errorf("failed to save app state: %w", err)
 			}
 		}
 		if len(userDelta) > 0 {
 			maps.Copy(storageUser.State, userDelta)
+			storageUser.State = filterMap(storageUser.State)
 			if err := tx.Save(&storageUser).Error; err != nil {
 				return fmt.Errorf("failed to save user state: %w", err)
 			}
 		}
-		createdSession.State = sessionState
+		createdSession.State = filterMap(sessionState)
 
-		if err := tx.Create(createdSession).Error; err != nil {
+		if err := tx.Save(createdSession).Error; err != nil {
 			return fmt.Errorf("error creating session on database: %w", err)
 		}
 
