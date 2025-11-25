@@ -17,7 +17,6 @@ package database
 import (
 	"fmt"
 	"iter"
-	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -180,7 +179,18 @@ func updateSessionState(sess *localSession, event *session.Event) error {
 		sess.state = make(map[string]any)
 	}
 
-	maps.Copy(sess.state, event.Actions.StateDelta)
+	for key, value := range event.Actions.StateDelta {
+		if strings.HasPrefix(key, session.KeyPrefixTemp) {
+			continue
+		}
+		if value == nil {
+			continue
+		}
+		if s, ok := value.(string); ok && s == "" {
+			continue
+		}
+		sess.state[key] = value
+	}
 
 	return nil
 }
