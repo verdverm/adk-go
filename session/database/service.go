@@ -41,11 +41,7 @@ type databaseService struct {
 //
 // It returns the new [session.Service] or an error if the database connection
 // [gorm.Open] fails.
-func NewSessionService(dialector gorm.Dialector, opts ...gorm.Option) (session.Service, error) {
-	db, err := gorm.Open(dialector, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("error creating database session service: %w", err)
-	}
+func NewSessionService(db *gorm.DB) (session.Service, error) {
 	return &databaseService{db: db}, nil
 }
 
@@ -83,8 +79,10 @@ func filterMap(m map[string]any) map[string]any {
 				result[k] = v
 			}
 		default:
-			// Keep all other types
-			result[k] = v
+			if v != nil {
+				// Keep all other types
+				result[k] = v
+			}
 		}
 	}
 	return result
@@ -531,13 +529,13 @@ func mergeStates(appState, userState, sessionState map[string]any) map[string]an
 	// In Go, we create a new map and copy key-value pairs. This is equivalent
 	// to the goal of Python's copy.deepcopy() in this context, which is to
 	// avoid modifying the original sessionState map.
-	maps.Copy(mergedState, sessionState)
+	maps.Copy(mergedState, filterMap(sessionState))
 
-	for key, value := range appState {
+	for key, value := range filterMap(appState) {
 		mergedState[session.KeyPrefixApp+key] = value
 	}
 
-	for key, value := range userState {
+	for key, value := range filterMap(userState) {
 		mergedState[session.KeyPrefixUser+key] = value
 	}
 

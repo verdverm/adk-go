@@ -184,6 +184,12 @@ func updateSessionState(sess *localSession, event *session.Event) error {
 		if strings.HasPrefix(key, session.KeyPrefixTemp) {
 			continue
 		}
+		if value == nil {
+			continue
+		}
+		if s, ok := value.(string); ok && s == "" {
+			continue
+		}
 		sess.state[key] = value
 	}
 
