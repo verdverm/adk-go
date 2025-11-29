@@ -21,3 +21,4 @@ profile.cov
 go.work
 go.work.sum
 /.tmp
+*.code-workspace
