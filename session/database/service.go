@@ -53,10 +53,13 @@ func NewSessionService(dialector gorm.Dialector, opts ...gorm.Option) (session.S
 // relational database (e.g., PostgreSQL, Spanner, SQLite) via an already initialized GORM DB.
 // This allows reusing the same database across multiple ADK services and your application.
 //
-// It requires a an initialized [*gorm.DB] to specify the database connection.
+// It requires an initialized [*gorm.DB] to specify the database connection.
 //
 // It returns the new [session.Service]. Error is always nil, but may be used in the future.
 func NewSessionServiceGorm(db *gorm.DB) (session.Service, error) {
+	if db == nil {
+		return nil, fmt.Errorf("session service: gorm.DB cannot be nil")
+	}
 	return &databaseService{db: db}, nil
 }
 
