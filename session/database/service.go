@@ -55,7 +55,7 @@ func NewSessionService(dialector gorm.Dialector, opts ...gorm.Option) (session.S
 //
 // It requires an initialized [*gorm.DB] to specify the database connection.
 //
-// It returns the new [session.Service]. Error is always nil, but may be used in the future.
+// It returns the new [session.Service] or an error if the provided *gorm.DB is nil.
 func NewSessionServiceGorm(db *gorm.DB) (session.Service, error) {
 	if db == nil {
 		return nil, fmt.Errorf("session service: gorm.DB cannot be nil")
