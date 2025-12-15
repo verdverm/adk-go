@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package gcs provides a Google Cloud Storage (GCS) implementation of the
-// [artifact.Service] interface.
+// Package gcsartifact provides a Google Cloud Storage (GCS) [artifact.Service].
 //
 // This package allows storing and retrieving artifacts in a GCS bucket.
 // Artifacts are organized by application name, user ID, session ID, and filename,
 // with support for versioning.
-package gcs
+package gcsartifact
 
 import (
 	"context"
@@ -118,7 +117,7 @@ func (s *gcsService) Save(ctx context.Context, req *artifact.SaveRequest) (_ *ar
 	writer := s.bucket.object(blobName).newWriter(ctx)
 	defer func() {
 		if closeErr := writer.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close blob reader: %w", closeErr)
+			err = fmt.Errorf("failed to close blob writer: %w", closeErr)
 		}
 	}()
 
