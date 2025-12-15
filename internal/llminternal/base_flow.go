@@ -503,6 +503,33 @@ func (f *Flow) handleFunctionCalls(ctx agent.InvocationContext, toolsDict map[st
 
 		spans := telemetry.StartTrace(ctx, "execute_tool "+fnCall.Name)
 		curTool, found := toolsDict[fnCall.Name]
+		// NOTE, former error handling prior to merge conflict, hopefully what is here now obviates this disabled block
+		// // HACK we replace the error with a custom error response
+		// // TODO, this ought to be configurable
+		// ev := session.NewEvent(ctx.InvocationID())
+		// ev.LLMResponse = model.LLMResponse{
+		// 	Content: &genai.Content{
+		// 		Role: "user",
+		// 		Parts: []*genai.Part{
+		// 			{
+		// 				FunctionResponse: &genai.FunctionResponse{
+		// 					ID:   fnCall.ID,
+		// 					Name: fnCall.Name,
+		// 					Response: map[string]any{
+		// 						"status": "error",
+		// 						"error":  fmt.Sprintf("unknown tool: %q", fnCall.Name),
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// }
+		// ev.Author = ctx.Agent().Name()
+		// ev.Branch = ctx.Branch()
+		// fnResponseEvents = append(fnResponseEvents, ev)
+		// continue
+		// // END HACK
+		// // return nil, fmt.Errorf("unknown tool: %q", fnCall.Name)
 		if !found {
 			err := newToolNotFoundError(fnCall.Name, toolNames)
 			result, err = f.runOnToolErrorCallbacks(toolCtx, &fakeTool{name: fnCall.Name}, fnCall.Args, err)
