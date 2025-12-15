@@ -27,8 +27,18 @@ type Service interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Delete(context.Context, *DeleteRequest) error
+
 	// AppendEvent is used to append an event to a session, and remove temporary state keys from the event.
 	AppendEvent(context.Context, Session, *Event) error
+
+	// PrepareEvent is used to collect user message parts and then include them in the next AppendEvent.
+	// Much like how multiple function calls can be executed in one message
+	// 1. Coding assistant does work
+	// 2. User makes edits
+	// 3. User sends message
+	// ... we need something for this
+	// It can go both ways too, for accumulating agent produced events
+	PrepareEvent(context.Context, Session, *Event) error
 }
 
 // InMemoryService returns an in-memory implementation of the session service.

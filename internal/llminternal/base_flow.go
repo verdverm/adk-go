@@ -369,7 +369,32 @@ func (f *Flow) handleFunctionCalls(ctx agent.InvocationContext, toolsDict map[st
 	for _, fnCall := range fnCalls {
 		curTool, ok := toolsDict[fnCall.Name]
 		if !ok {
-			return nil, fmt.Errorf("unknown tool: %q", fnCall.Name)
+			// HACK we replace the error with a custom error response
+			// TODO, this ought to be configurable
+			ev := session.NewEvent(ctx.InvocationID())
+			ev.LLMResponse = model.LLMResponse{
+				Content: &genai.Content{
+					Role: "user",
+					Parts: []*genai.Part{
+						{
+							FunctionResponse: &genai.FunctionResponse{
+								ID:   fnCall.ID,
+								Name: fnCall.Name,
+								Response: map[string]any{
+									"status": "error",
+									"error":  fmt.Sprintf("unknown tool: %q", fnCall.Name),
+								},
+							},
+						},
+					},
+				},
+			}
+			ev.Author = ctx.Agent().Name()
+			ev.Branch = ctx.Branch()
+			fnResponseEvents = append(fnResponseEvents, ev)
+			continue
+			// END HACK
+			// return nil, fmt.Errorf("unknown tool: %q", fnCall.Name)
 		}
 		funcTool, ok := curTool.(toolinternal.FunctionTool)
 		if !ok {
@@ -518,6 +543,7 @@ func mergeEventActions(base, other *session.EventActions) *session.EventActions 
 		base.Escalate = true
 	}
 	if other.StateDelta != nil {
+		fmt.Println("copying in tool delta", other.StateDelta)
 		maps.Copy(base.StateDelta, other.StateDelta)
 		// base.StateDelta = other.StateDelta
 	}

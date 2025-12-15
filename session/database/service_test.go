@@ -62,7 +62,7 @@ func Test_databaseService_Create(t *testing.T) {
 			},
 		},
 		{
-			name:  "when already exists, it fails", // this differs from inmemmory impl
+			name:  "when already exists, want err", // this differs from inmemmory impl
 			setup: serviceDbWithData,
 			req: &session.CreateRequest{
 				AppName:   "app1",

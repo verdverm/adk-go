@@ -174,6 +174,10 @@ func (s *FakeSessionService) Delete(ctx context.Context, req *session.DeleteRequ
 	return nil
 }
 
+func (s *FakeSessionService) PrepareEvent(ctx context.Context, curSession session.Session, event *session.Event) error {
+	return s.AppendEvent(ctx, curSession, event)
+}
+
 func (s *FakeSessionService) AppendEvent(ctx context.Context, curSession session.Session, event *session.Event) error {
 	testSession, ok := curSession.(*TestSession)
 	if !ok {

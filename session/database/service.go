@@ -41,7 +41,22 @@ type databaseService struct {
 //
 // It returns the new [session.Service] or an error if the database connection
 // [gorm.Open] fails.
-func NewSessionService(db *gorm.DB) (session.Service, error) {
+func NewSessionService(dialector gorm.Dialector, opts ...gorm.Option) (session.Service, error) {
+	db, err := gorm.Open(dialector, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database session service: %w", err)
+	}
+	return &databaseService{db: db}, nil
+}
+
+// NewSessionServiceGorm creates a new [session.Service] implementation that uses a
+// relational database (e.g., PostgreSQL, Spanner, SQLite) via an already initialized GORM DB.
+// This allows reusing the same database across multiple ADK services and your application.
+//
+// It requires a an initialized [*gorm.DB] to specify the database connection.
+//
+// It returns the new [session.Service]. Error is always nil, but may be used in the future.
+func NewSessionServiceGorm(db *gorm.DB) (session.Service, error) {
 	return &databaseService{db: db}, nil
 }
 
@@ -337,6 +352,10 @@ func (s *databaseService) Delete(ctx context.Context, req *session.DeleteRequest
 
 		return nil // Returning nil commits the transaction
 	})
+}
+
+func (s *databaseService) PrepareEvent(ctx context.Context, curSession session.Session, event *session.Event) error {
+	return s.AppendEvent(ctx, curSession, event)
 }
 
 func (s *databaseService) AppendEvent(ctx context.Context, curSession session.Session, event *session.Event) error {

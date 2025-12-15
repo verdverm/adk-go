@@ -250,6 +250,7 @@ func (t *agentTool) Run(toolCtx tool.Context, args any) (map[string]any, error) 
 func (t *agentTool) ProcessRequest(ctx tool.Context, req *model.LLMRequest) error {
 	// TODO extract this function somewhere else, simillar operations are done for
 	// other tools with function declaration.
+	// NOTE This already looks to be extracted, and needs to be used at least here
 	if req.Tools == nil {
 		req.Tools = make(map[string]any)
 	}
