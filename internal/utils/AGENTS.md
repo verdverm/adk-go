@@ -14,3 +14,5 @@ This package provides a collection of general-purpose, unexported helper functio
 ## Schema Validation Utilities (`schema_utils.go`)
 
 *   **`ValidateMapOnSchema`**: The core validation function that checks if a `map[string]any` (e.g., function arguments or results) conforms to a given `genai.Schema`, ensuring all required properties are present and their types match the schema definition.
+*   **`ValidateOutputSchema`**: Specifically validates a JSON string (typically a tool's output) against a schema by attempting to parse the JSON and then calling `ValidateMapOnSchema`.
+*   **`matchType`**: A recursive helper that performs runtime type checking of values against the corresponding `genai.Type` in the schema. This logic handles primitives, arrays (recursively), and objects.

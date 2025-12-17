@@ -7,12 +7,7 @@ This package encapsulates the unexported, foundational state and structural comp
 This file defines the base internal state that all public `agent.Agent` implementations embed and rely on.
 
 *   `State` **struct**: An unexported struct that holds essential configuration fields, most notably the `AgentType`.
-*   `Type` **constants**: Defines the concrete agent classification, such as:
-    *   `TypeLLMAgent`
-    *   `TypeLoopAgent`
-    *   `TypeSequentialAgent`
-    *   `TypeParallelAgent`
-    *   `TypeCustomAgent`
+*   `Type` **constants**: Defines the concrete agent classification.
 *   `Reveal` **function**: A utility function that provides access to the internal `*State`, allowing other internal ADK packages to inspect an agent's specific type and configuration.
 
 ```go
@@ -56,15 +51,15 @@ This sub-package defines and manages invocation-specific runtime configurations 
 
 ```go
 type RunConfig struct {
-	StreamingMode StreamingMode
+       StreamingMode StreamingMode
 }
 
 type StreamingMode string
 
 const (
-	StreamingModeNone StreamingMode = "none"
-	StreamingModeSSE  StreamingMode = "sse"
-	StreamingModeBidi StreamingMode = "bidi"
+       StreamingModeNone StreamingMode = "none"
+       StreamingModeSSE  StreamingMode = "sse"
+       StreamingModeBidi StreamingMode = "bidi"
 )
 ```
 

@@ -2,9 +2,15 @@
 
 This package houses the entire, complex execution pipeline for `LLMAgent` implementations, defining the multi-turn conversational loop, state management, and all necessary request/response processing.
 
-## Core Architecture
+## Core Execution and State
 
-The execution model revolves around the `Flow` struct, which orchestrates the interaction with the LLM.
+| File/Sub-Package | Description |
+| :--- | :--- |
+| `agent.go` | Defines the internal `State` for an `LLMAgent`, including the `model.LLM`, lists of `tool.Tool` and `tool.Toolset`, instruction strings, schemas (`InputSchema`, `OutputSchema`), and configuration flags for agent transfers. |
+| `base_flow.go` | **The Core Orchestrator.** Defines the `Flow` struct, which contains pipelines of `RequestProcessors` and `ResponseProcessors`, and execution callbacks. The `Flow.Run` method implements the primary iterative agent loop, continually calling `runOneStep` to process model calls, handle function calls (`handleFunctionCalls`), and manage flow control until a final response. |
+| `stream_aggregator.go` | Contains the `streamingResponseAggregator` to efficiently combine fragmented text parts from a streaming LLM response into full, coherent chunks for yielding, ensuring data integrity during streaming. |
+| `converters/` | Houses `converters.go`, which provides `Genai2LLMResponse` for converting raw `genai` responses into the ADK's standard `model.LLMResponse`. |
+| `googlellm/` | Contains `variant.go`, which provides utilities to determine the specific Google LLM environment (e.g., Vertex AI vs. Gemini API) based on runtime configuration/environment variables. |
 
 ### State Management (`agent.go`)
 
@@ -53,6 +59,17 @@ type Flow struct {
 }
 ```
 
+#### Relationship to Non-Internal Interfaces
+
+The `Flow` manages interaction with the core public interfaces:
+
+| Internal Component | Public Interface/Type | Role |
+| :--- | :--- | :--- |
+| `Model` field | `model.LLM` | Used directly to call `GenerateContent` for text generation. |
+| `RequestProcessors` | `agent.InvocationContext` | All processors receive this context for full access to the running environment. |
+| Callbacks | `agent.CallbackContext`, `tool.Context` | Custom logic is injected using these restricted-access contexts. |
+| Execution Output | `session.Event` | The entire flow yields public `session.Event` structures as output. |
+
 **Key Methods:**
 *   `Run(ctx)`: The main entry point. It returns an iterator of events. It loops calling `runOneStep` until a final response is reached.
 *   `runOneStep(ctx)`: Executes a single turn:
@@ -62,18 +79,18 @@ type Flow struct {
     4.  **Handle Tools**: If the model requests tool calls, executes them via `handleFunctionCalls` and yields the results.
     5.  **Agent Transfer**: Checks if control should be passed to another agent.
 
-## Request Processors
+## Request Processors (Preprocessing before LLM call)
 
-These functions populate and modify the `model.LLMRequest` before it is sent to the LLM.
+These functions modify the `model.LLMRequest` to prepare it for the LLM, running in a configurable pipeline defined in `Flow`.
 
 | Processor | File | Description |
 | :--- | :--- | :--- |
-| `basicRequestProcessor` | `basic_processor.go` | Sets up generation config and output schemas. |
-| `instructionsRequestProcessor` | `instruction_processor.go` | Injects session state variables (e.g., `{app:key}`) into instructions. |
-| `ContentsRequestProcessor` | `contents_processor.go` | Assembles conversation history from session events, filtering by branch and formatting cross-agent replies. |
-| `AgentTransferRequestProcessor` | `agent_transfer.go` | Dynamically adds the `transfer_to_agent` tool if applicable. |
-| `removeDisplayNameIfExists` | `file_uploads_processor.go` | Sanitizes file parts for compatibility with Gemini API. |
-
+| `basicRequestProcessor` | `basic_processor.go` | Sets fundamental LLM generation configurations (`genai.GenerateContentConfig`) and applies the agent's `OutputSchema` to the request. |
+| `instructionsRequestProcessor` | `instruction_processor.go` | Implements logic to load and inject session-scoped variables (e.g., `{app:key}`, `{artifact.file_name}`) into the agent's instructions and global instructions before they are sent to the LLM. |
+| `ContentsRequestProcessor` | `contents_processor.go` | Constructs the conversation history (`req.Contents`). It is responsible for: 1) Filtering history by the current `Branch`, 2) Converting peer agent replies into contextual user-authored content, and 3) Rearranging function call/response event pairs in the history to maintain conversational integrity. |
+| `AgentTransferRequestProcessor` | `agent_transfer.go` | Implements `AgentTransferRequestProcessor` which dynamically enables the `transfer_to_agent` tool based on the agent's position in the tree and configured transfer policies (`DisallowTransferToParent`, `DisallowTransferToPeers`). |
+| `removeDisplayNameIfExists` | `file_uploads_processor.go` | Removes the `DisplayName` from file parts for compatibility with specific LLM backends (e.g., Gemini API). |
+| `other_processors.go` | `other_processors.go` | Contains unexported placeholder functions for functionality like NL Planning (`nlPlanningRequestProcessor`) and Code Execution (`codeExecutionRequestProcessor`). |
 ## Helper Components
 
 ### Stream Aggregation (`stream_aggregator.go`)

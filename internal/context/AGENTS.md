@@ -1,10 +1,13 @@
 # Package `internal/context`
 
-This package provides the concrete, unexported implementations of the public context interfaces (`agent.InvocationContext` and `agent.CallbackContext`), managing the environment and state propagation during an agent's execution.
+This package provides the concrete, unexported implementations of the public context interfaces `agent.InvocationContext` and `agent.CallbackContext`, managing the environment and state propagation during an agent's execution.
 
 ## Invocation Context (`invocation_context.go`)
 
 The `InvocationContext` is the runtime backbone of an agent. It carries all the state required for a single execution run.
+
+*   `InvocationContext` **struct**: The core context object created at the start of an agent run. It embeds a standard `context.Context` and holds all run-specific parameters.
+*   **Purpose**: To provide all necessary dependencies and state (read-only and mutable) to the currently executing agent and its sub-components. It also tracks if the invocation has been manually ended (`EndInvocation`).
 
 ```go
 type InvocationContext struct {
@@ -43,7 +46,7 @@ type InvocationContextParams struct {
 
 The `callbackContext` is a specialized view provided to tools and callbacks.
 
-*   **`callbackContext` struct**: Implements the `agent.CallbackContext` interface, used by callbacks and tools.
-*   **State Delta Tracking**: It is initialized with a `stateDelta` map. When `State().Set()` is called, the change is recorded here rather than immediately in the session, allowing atomic updates via `session.EventActions`.
-*   **Artifact Delta Tracking**: Wraps `agent.Artifacts` to record new artifact versions in `session.EventActions.ArtifactDelta`.
+*   `callbackContext` **struct**: Implements the `agent.CallbackContext` interface, primarily used by `BeforeAgentCallback`, `AfterAgentCallback`, and `tool.Tool` implementations.
+*   **State Delta Tracking**: It is initialized with a `stateDelta` map. When a callback or tool calls its `State().Set()` method, the change is recorded in this map rather than the session directly, allowing the resulting session event to carry the exact state changes (`session.EventActions.StateDelta`).
+*   **Artifact Delta Tracking**: It wraps the `agent.Artifacts` interface in `internalArtifacts` to ensure that any call to `Save` also records the new artifact version in `session.EventActions.ArtifactDelta`.
 *   **State Access**: Its implementation of the `session.State` interface prioritizes reading from the local `StateDelta` map before falling back to the session's global state, ensuring that edits made earlier in the same turn are visible immediately.
