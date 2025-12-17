@@ -1,35 +1,99 @@
-# ADK Internal LLM Agent Components (`internal/llminternal/`)
+# Package `internal/llminternal`
 
 This package houses the entire, complex execution pipeline for `LLMAgent` implementations, defining the multi-turn conversational loop, state management, and all necessary request/response processing.
 
-## Core Execution and State
+## Core Architecture
 
-| File/Sub-Package | Description |
-| :--- | :--- |
-| `agent.go` | Defines the internal `State` for an `LLMAgent`, including the `model.LLM`, lists of `tool.Tool` and `tool.Toolset`, instruction strings, schemas (`InputSchema`, `OutputSchema`), and configuration flags for agent transfers. |
-| `base_flow.go` | **The Core Orchestrator.** Defines the `Flow` struct, which contains pipelines of `RequestProcessors` and `ResponseProcessors`, and execution callbacks. The `Flow.Run` method implements the primary iterative agent loop, continually calling `runOneStep` to process model calls, handle function calls (`handleFunctionCalls`), and manage flow control until a final response. |
-| `stream_aggregator.go` | Contains the `streamingResponseAggregator` to efficiently combine fragmented text parts from a streaming LLM response into full, coherent chunks for yielding, ensuring data integrity during streaming. |
-| `converters/` | Houses `converters.go`, which provides `Genai2LLMResponse` for converting raw `genai` responses into the ADK's standard `model.LLMResponse`. |
-| `googlellm/` | Contains `variant.go`, which provides utilities to determine the specific Google LLM environment (e.g., Vertex AI vs. Gemini API) based on runtime configuration/environment variables. |
+The execution model revolves around the `Flow` struct, which orchestrates the interaction with the LLM.
 
-## Request Processors (Preprocessing before LLM call)
+### State Management (`agent.go`)
 
-These functions modify the `model.LLMRequest` to prepare it for the LLM, running in a configurable pipeline defined in `Flow`.
+The `State` struct holds the internal configuration for an `LLMAgent`.
 
-| File | Functionality |
-| :--- | :--- |
-| `basic_processor.go` | Sets fundamental LLM generation configurations (`genai.GenerateContentConfig`) and applies the agent's `OutputSchema` to the request. |
-| `instruction_processor.go` | Implements logic to load and inject session-scoped variables (e.g., `{app:key}`, `{artifact.file_name}`) into the agent's instructions and global instructions before they are sent to the LLM. |
-| `contents_processor.go` | Constructs the conversation history (`req.Contents`). It is responsible for: 1) Filtering history by the current `Branch`, 2) Converting peer agent replies into contextual user-authored content, and 3) Rearranging function call/response event pairs in the history to maintain conversational integrity. |
-| `agent_transfer.go` | Implements `AgentTransferRequestProcessor` which dynamically enables the `transfer_to_agent` tool based on the agent's position in the tree and configured transfer policies (`DisallowTransferToParent`, `DisallowTransferToPeers`). |
-| `file_uploads_processor.go` | Removes the `DisplayName` from file parts for compatibility with specific LLM backends (e.g., Gemini API). |
-| `other_processors.go` | Contains unexported placeholder functions for functionality like NL Planning (`nlPlanningRequestProcessor`) and Code Execution (`codeExecutionRequestProcessor`). |
+```go
+type State struct {
+	Model model.LLM
 
-## Deep Dive: LLM Agent Execution Flow (internal/llminternal/base_flow.go)
+	Tools    []tool.Tool
+	Toolsets []tool.Toolset
+
+	IncludeContents string
+
+	GenerateContentConfig *genai.GenerateContentConfig
+
+	Instruction               string
+	InstructionProvider       InstructionProvider
+	GlobalInstruction         string
+	GlobalInstructionProvider InstructionProvider
+
+	DisallowTransferToParent bool
+	DisallowTransferToPeers  bool
+
+	InputSchema  *genai.Schema
+	OutputSchema *genai.Schema
+
+	OutputKey string
+}
+```
+
+### The Execution Engine (`base_flow.go`)
+
+The `Flow` struct defines the pipeline for processing requests and responses.
+
+```go
+type Flow struct {
+	Model model.LLM
+
+	RequestProcessors    []func(ctx agent.InvocationContext, req *model.LLMRequest) error
+	ResponseProcessors   []func(ctx agent.InvocationContext, req *model.LLMRequest, resp *model.LLMResponse) error
+	BeforeModelCallbacks []BeforeModelCallback
+	AfterModelCallbacks  []AfterModelCallback
+	BeforeToolCallbacks  []BeforeToolCallback
+	AfterToolCallbacks   []AfterToolCallback
+}
+```
+
+**Key Methods:**
+*   `Run(ctx)`: The main entry point. It returns an iterator of events. It loops calling `runOneStep` until a final response is reached.
+*   `runOneStep(ctx)`: Executes a single turn:
+    1.  **Preprocess**: Runs `RequestProcessors` (e.g., building history, injecting instructions).
+    2.  **Call LLM**: Invokes the model, handling streaming and callbacks.
+    3.  **Postprocess**: Runs `ResponseProcessors`.
+    4.  **Handle Tools**: If the model requests tool calls, executes them via `handleFunctionCalls` and yields the results.
+    5.  **Agent Transfer**: Checks if control should be passed to another agent.
+
+## Request Processors
+
+These functions populate and modify the `model.LLMRequest` before it is sent to the LLM.
+
+| Processor | File | Description |
+| :--- | :--- | :--- |
+| `basicRequestProcessor` | `basic_processor.go` | Sets up generation config and output schemas. |
+| `instructionsRequestProcessor` | `instruction_processor.go` | Injects session state variables (e.g., `{app:key}`) into instructions. |
+| `ContentsRequestProcessor` | `contents_processor.go` | Assembles conversation history from session events, filtering by branch and formatting cross-agent replies. |
+| `AgentTransferRequestProcessor` | `agent_transfer.go` | Dynamically adds the `transfer_to_agent` tool if applicable. |
+| `removeDisplayNameIfExists` | `file_uploads_processor.go` | Sanitizes file parts for compatibility with Gemini API. |
+
+## Helper Components
+
+### Stream Aggregation (`stream_aggregator.go`)
+`streamingResponseAggregator` combines partial text chunks from streaming responses into coherent `LLMResponse` objects.
+
+### Converters (`converters/`)
+Provides utilities to map between `genai` types and ADK `model` types.
+*   `Genai2LLMResponse`: Converts `genai.GenerateContentResponse` to `model.LLMResponse`.
+
+### Google LLM Variants (`googlellm/`)
+`variant.go` detects whether to use Vertex AI or Gemini API based on environment variables.
+
+## Key Instructions Logic (`instruction_processor.go`)
+
+Supports dynamic template substitution in instructions:
+*   `InjectSessionState`: Replaces placeholders like `{variable}` with session state values or `{artifact.filename}` with file contents.
+
+## Deep Dive: LLM Agent Execution Flow (`internal/llminternal/base_flow.go`)
 
 The file `internal/llminternal/base_flow.go` is the central orchestrator and execution engine for all Large Language Model (LLM) based agents (`LLMAgent`) within the ADK. It defines the iterative, multi-turn loop that drives the agent's reasoning, tool use, and response generation cycle.
-
----
 
 ### 1. Core Struct: Flow and Configuration
 
@@ -43,32 +107,19 @@ type Flow struct {
 
 	// Pipeline of functions run BEFORE the LLM call
 	RequestProcessors    []func(ctx agent.InvocationContext, req *model.LLMRequest) error
-	
+
 	// Pipeline of functions run AFTER the LLM call
 	ResponseProcessors   []func(ctx agent.InvocationContext, req *model.LLMRequest, resp *model.LLMResponse) error
-	
+
 	// Callbacks for introspection/modification
 	BeforeModelCallbacks []BeforeModelCallback
-	AfterModelCallbacks  []AfterModelCallbacks
+	AfterModelCallbacks  []AfterModelCallback
 	BeforeToolCallbacks  []BeforeToolCallback
-	AfterToolCallbacks   []AfterToolCallbacks
+	AfterToolCallbacks   []AfterToolCallback
 }
 ```
 
-#### Relationship to Non-Internal Interfaces
-
-The `Flow` manages interaction with the core public interfaces:
-
-| Internal Component | Public Interface/Type | Role |
-| :--- | :--- | :--- |
-| `Model` field | `model.LLM` | Used directly to call `GenerateContent` for text generation. |
-| `RequestProcessors` | `agent.InvocationContext` | All processors receive this context for full access to the running environment. |
-| Callbacks | `agent.CallbackContext`, `tool.Context` | Custom logic is injected using these restricted-access contexts. |
-| Execution Output | `session.Event` | The entire flow yields public `session.Event` structures as output. |
-
----
-
-### 2. The Core Agent Execution Loop (Flow.Run)
+### 2. The Core Agent Execution Loop (`Flow.Run`)
 
 The `Run` method implements the high-level iterative nature of the LLM agent, constantly calling `runOneStep` until a final state is reached. This enables the agent to handle multi-turn reasoning and tool-use cycles without external orchestration.
 
@@ -81,7 +132,7 @@ func (f *Flow) Run(ctx agent.InvocationContext) iter.Seq2[*session.Event, error]
 				// ... Yields events ...
 				lastEvent = ev
 			}
-			
+
 			// The loop terminates only if the last event signals a final response.
 			if lastEvent == nil || lastEvent.IsFinalResponse() {
 				return
@@ -93,9 +144,7 @@ func (f *Flow) Run(ctx agent.InvocationContext) iter.Seq2[*session.Event, error]
 
 The loop continues as long as `lastEvent.IsFinalResponse()` returns `false`, which typically means the agent either called a function that requires a response (starting a new turn) or was interrupted.
 
----
-
-### 3. Single Turn Execution (runOneStep)
+### 3. Single Turn Execution (`runOneStep`)
 
 The `runOneStep` function is the core logic that defines a single interaction turn, encompassing request preparation, model interaction, and post-processing.
 
@@ -121,9 +170,7 @@ After the model generates content, this phase finalizes the event for the outsid
     *   Generates a unique, internal client ID for any function call requested by the model (`utils.PopulateClientFunctionCallID`).
     *   Creates a `session.Event`, populating its `LLMResponse`, `Branch`, `Author`, and any state changes (`stateDelta`) collected during model callbacks.
     *   Identifies and records any `LongRunningToolIDs`.
-3.  The completed `session.Event` is yielded.
-
----
+3.  **Yield**: The completed `session.Event` is yielded.
 
 ### 4. Tool and Agent Transfer Handling
 

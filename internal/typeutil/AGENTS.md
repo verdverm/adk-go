@@ -1,4 +1,4 @@
-# ADK Internal Type Utilities (`internal/typeutil/`)
+# Package `internal/typeutil`
 
 This package provides utility functions for converting between Go types, with an emphasis on using JSON marshalling and unmarshalling to handle complex structural conversion and optional JSON schema validation.
 

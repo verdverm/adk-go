@@ -1,4 +1,4 @@
-# ADK Internal Converters Components (`internal/converters/`)
+# Package `internal/converters`
 
 This package provides utility functions for converting internal data structures, primarily leveraging JSON marshalling to handle types where reflective libraries may be incompatible or incomplete.
 

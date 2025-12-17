@@ -1,6 +1,6 @@
-# ADK Internal CLI Components (`internal/cli/`)
+# Package `internal/cli`
 
-The `internal/cli/` package is an internal utility layer that provides helper functions for building command-line applications related to the ADK. It is structured entirely within a single `util/` sub-package.
+This package is an internal utility layer that provides helper functions for building command-line applications related to the ADK. It is structured entirely within a single `util/` sub-package.
 
 ## Utilities (`util/`)
 
