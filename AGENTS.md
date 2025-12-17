@@ -1,31 +1,41 @@
 # ADK Go Project Structure
 
-The Agent Development Kit (ADK) for Go is structured into several top-level packages, reflecting a modular and idiomatic Go project layout.
+The Agent Development Kit (ADK) for Go is a framework for building stateful, interactive AI agents. It is structured to separate the public API (interfaces, models) from the complex internal execution logic.
 
-## Core Agent Components
+## System Overview
+
+The ADK operates on a **Session-based Event Loop** model:
+
+1.  **Session**: Represents a conversation with a user. It holds the persistent `State` (key-value) and `Events` (history).
+2.  **Runner**: The runtime that loads a session, determines which `Agent` should handle the next turn, and executes it.
+3.  **Agent**: A logical unit (e.g., `LLMAgent`, `LoopAgent`) that receives the current context and produces `Events`.
+4.  **Events**: Immutable records of interactions (User messages, Model responses, Tool calls).
+
+## Package Directory
+
+### Core Agent Components
 
 These packages contain the essential logic for defining and running agents.
 
 | Package | Description |
 | :--- | :--- |
-| `agent/` | Defines the `Agent` interface, core abstractions (`InvocationContext`), and callback types (`BeforeAgentCallback`, `AfterAgentCallback`) for defining agent behavior. |
-| `model/` | Defines the `LLM` interface and structures (`LLMRequest`, `LLMResponse`) for model-agnostic interaction with Large Language Models (LLMs), such as Gemini. |
-| `tool/` | Defines the `Tool` interface and `Context` for creating, managing, and calling external functions that agents can utilize. |
-| `runner/` | Manages the execution environment and lifecycle of an agent within a session, handling message processing and service orchestration. |
-| `session/` | Defines the conversation structure, including the `Session` interface, turn-based `Event` history, and `State` for session-scoped key-value storage. |
+| [`agent/`](agent/AGENTS.md) | **The Agent Interface.** Defines `Agent`, `InvocationContext`, and the `llmagent`, `workflowagents` implementations. |
+| [`model/`](model/AGENTS.md) | **LLM Abstraction.** Defines `LLM`, `LLMRequest`, `LLMResponse`. Adapters for Gemini/Vertex AI. |
+| [`tool/`](tool/AGENTS.md) | **Tool Use.** Defines `Tool`, `Context`, and standard tools (`geminitool`, `functiontool`). |
+| [`runner/`](runner/AGENTS.md) | **Execution Runtime.** Orchestrates the Agent-Session loop. |
+| [`session/`](session/AGENTS.md) | **State Management.** Defines `Session`, `Event`, `State`. |
 
-## Auxiliary Components
+### Auxiliary Components
 
-These packages support the core agent functionality, managing state, data, and serving.
+These packages support the core agent functionality.
 
 | Package | Description |
 | :--- | :--- |
-| `memory/` | Defines the `Service` interface for long-term agent knowledge, enabling storage and retrieval of session content across different user sessions. |
-| `artifact/` | Defines the `Service` interface for managing file artifacts (`Save`, `Load`, `Delete`, `List`) associated with a session, including versioning support. |
-| `server/` | Hosts protocol implementations (e.g., ADK REST, ADK A2A) to expose and serve ADK agents as services. |
-| `telemetry/` | Provides mechanisms, such as `RegisterSpanProcessor`, for observability, tracing, and metrics for agent events. |
-| `util/` | A collection of general-purpose utility functions and helpers used throughout the codebase. |
-| `internal/` | Packages intended for internal use only by the ADK. Go's compiler prevents external packages from importing these. |
+| [`memory/`](memory/AGENTS.md) | **Long-term Memory.** RAG (Retrieval Augmented Generation) service interface. |
+| [`artifact/`](artifact/AGENTS.md) | **File Storage.** Managed file storage for sessions. |
+| [`server/`](server/AGENTS.md) | **Serving.** REST API and Agent-to-Agent (A2A) protocols. |
+| [`telemetry/`](telemetry/AGENTS.md) | **Observability.** OpenTelemetry integration. |
+| [`util/`](util/AGENTS.md) | **Utilities.** Helpers for instructions and data. |
 
 ## Examples and Entry Points
 
@@ -37,6 +47,8 @@ These packages support the core agent functionality, managing state, data, and s
 ## Internal Structure Summary
 
 The `internal/` directory is composed of unexported packages that provide the concrete, runtime implementation details for the public interfaces.
+
+[`internal/`](internal/AGENTS.md) **Private Implementation.** Contains the heavy lifting for LLM execution (`llminternal`), context management, and service adapters. **DO NOT IMPORT.**
 
 | Package | Description |
 | :--- | :--- |

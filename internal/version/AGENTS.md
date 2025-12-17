@@ -1,4 +1,4 @@
-# ADK Internal Version Tracking (`internal/version/`)
+# Package `internal/version`
 
 This package is solely responsible for exposing the current version string of the ADK Go library.
 
