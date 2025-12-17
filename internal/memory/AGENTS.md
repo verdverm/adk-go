@@ -6,6 +6,11 @@ This package provides the concrete, session-scoped implementation of the `agent.
 
 Similar to the `artifact` package, this package enforces session isolation for memory operations.
 
+*   `Memory` **struct**: An unexported structure that embeds a public `memory.Service` and caches the identifying metadata: `AppName`, `UserID`, and `SessionID`.
+*   **Method Implementations**: The methods (`AddSession`, `Search`) translate the simplified calls from an `agent.InvocationContext` into the structured request objects required by the underlying memory service.
+    *   `AddSession` forwards the entire `session.Session` object to the service for ingestion.
+    *   `Search` creates a `memory.SearchRequest` using the current `AppName` and `UserID`, scoped for long-term knowledge retrieval.
+
 ### The `Memory` Struct
 
 ```go

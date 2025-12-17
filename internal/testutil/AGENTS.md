@@ -2,6 +2,14 @@
 
 This package provides comprehensive fixtures and utilities necessary for deterministic and reliable testing of ADK agents, models, and execution components.
 
+## Agent Testing Infrastructure (`test_agent_runner.go`)
+
+*   `TestAgentRunner` **struct**: A high-level helper struct designed to simplify end-to-end testing of `agent.Agent` implementations. It manages the creation of sessions, wraps the public `runner.Runner`, and provides entry points (`Run`, `RunContent`, `RunContentWithConfig`) to execute the agent.
+*   `MockModel` **struct**: A core test fixture that implements the `model.LLM` interface.
+    *   It allows tests to pre-program responses (`Responses`) and captures all incoming requests (`Requests`) for assertion, eliminating external network dependencies.
+    *   It supports both blocking (`Generate`) and streaming (`GenerateStream`) LLM modes.
+*   **Collectors**: Helper functions (`CollectEvents`, `CollectParts`, `CollectTextParts`) for cleanly consuming and aggregating the `iter.Seq2` stream of results returned by the runner.
+
 ## LLM Testing Utilities (`genai.go`)
 
 ### Gemini Transport
@@ -19,7 +27,3 @@ To ensure that tests are stable (deterministic) and safe (no secrets logged), th
 
 1.  **Header Removal**: Strips variable headers like `X-Goog-Api-Key`, `X-Goog-Api-Client`, and `User-Agent`.
 2.  **JSON Canonicalization**: The Gemini API uses protobuf-generated JSON, which can have non-deterministic whitespace. This utility parses and re-serializes (compacts) the JSON body to ensure byte-for-byte equality across test runs.
-
-### Test Agent Runner (`test_agent_runner.go`)
-
-Provides helper functions to execute agents in a simplified test harness, mocking necessary session context.

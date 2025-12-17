@@ -6,6 +6,10 @@ This package provides the concrete, session-scoped implementation of the `agent.
 
 The primary component is the `Artifacts` struct, which serves as a secure proxy to the global artifact service.
 
+*   `Artifacts` **struct**: An unexported structure that embeds a public `artifact.Service` and caches the identifying metadata: `AppName`, `UserID`, and `SessionID`.
+*   **Method Implementations**: The methods (`Save`, `Load`, `LoadVersion`, `List`) translate the simplified calls from an `agent.InvocationContext` (which only provides the artifact name and data) into the full, structured request objects (`artifact.SaveRequest`, `artifact.LoadRequest`, etc.) required by the underlying artifact storage service. This ensures that artifact operations are correctly scoped to the current user's session.
+*   **Interface Guarantee**: The `Artifacts` struct explicitly verifies it implements the `agent.Artifacts` interface: `var _ agent.Artifacts = (*Artifacts)(nil)`.
+
 ### The `Artifacts` Struct
 
 ```go

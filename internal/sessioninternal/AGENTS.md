@@ -9,7 +9,7 @@ This package provides internal implementation details for the public `session.Se
 
 ## Mutable State Contract (`session.go`)
 
-*   **`MutableState` interface**: A small, unexported interface defining only the `Set(string, any) error` method. This acts as the internal contract that must be implemented by any concrete state store to allow session state modification.
+*   `MutableState` **interface**: A small, unexported interface defining only the `Set(string, any) error` method. This acts as the internal contract that must be implemented by any concrete state store to allow session state modification.
 
 ```go
 type MutableState interface {
