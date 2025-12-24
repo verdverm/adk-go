@@ -46,7 +46,7 @@ type Service interface {
 	// - many-to-many session-event (so they can share a history i.e. mainly to support trees and threads)
 	// - if/how to track/manage lineage, where did we branch from & where is that stored on the new clone
 	// even without many-to-many, like the current session/database impln, we could still walk lineage via state deltas
-	Clone() (Session, error)
+	Clone(context.Context, Session) (Session, error)
 
 	// Splice makes in-place modifications to the session
 	//   it is up to the user to manage state delta accumulation and handling (TODO, provide helpers)
@@ -55,7 +55,7 @@ type Service interface {
 	// replace: (N, 1, event) | (N, n, events)
 	// rewind: (len(session)-n, n, nil)
 	// no-op: (N, 0, ...)
-	Splice(start, count int, fill Events) (Session, error)
+	Splice(ctx context.Context, session Session, start, count int, fill Events) (Session, error)
 }
 
 // InMemoryService returns an in-memory implementation of the session service.
