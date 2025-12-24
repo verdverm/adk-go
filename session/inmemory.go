@@ -101,13 +101,13 @@ func (s *inMemoryService) Get(ctx context.Context, req *GetRequest) (*GetRespons
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	id := id{
+	key := id{
 		appName:   appName,
 		userID:    userID,
 		sessionID: sessionID,
 	}
 
-	res, ok := s.sessions.Get(id.Encode())
+	res, ok := s.sessions.Get(key.Encode())
 	if !ok {
 		return nil, fmt.Errorf("session %+v not found", req.SessionID)
 	}
@@ -184,14 +184,103 @@ func (s *inMemoryService) Delete(ctx context.Context, req *DeleteRequest) error 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	id := id{
+	key := id{
 		appName:   appName,
 		userID:    userID,
 		sessionID: sessionID,
 	}
 
-	s.sessions.Delete(id.Encode())
+	s.sessions.Delete(key.Encode())
 	return nil
+}
+
+func (s *inMemoryService) Clone(ctx context.Context, sess Session) (Session, error) {
+	if sess == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	s.mu.RLock()
+	key := id{appName: sess.AppName(), userID: sess.UserID(), sessionID: sess.ID()}
+	storedSession, ok := s.sessions.Get(key.Encode())
+	s.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("session not found")
+	}
+
+	newSessionID := uuid.NewString()
+	newSess := &session{
+		id: id{
+			appName:   sess.AppName(),
+			userID:    sess.UserID(),
+			sessionID: newSessionID,
+		},
+		updatedAt: time.Now(),
+		state:     maps.Clone(storedSession.state),
+		events:    slices.Clone(storedSession.events),
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessions.Set(newSess.id.Encode(), newSess)
+
+	copiedSession := copySessionWithoutStateAndEvents(newSess)
+	copiedSession.state = s.mergeStates(newSess.state, newSess.AppName(), newSess.UserID())
+	copiedSession.events = slices.Clone(newSess.events)
+
+	return copiedSession, nil
+}
+
+func (s *inMemoryService) Splice(ctx context.Context, sess Session, start, count int, fill Events) (Session, error) {
+	if sess == nil {
+		return nil, fmt.Errorf("session is nil")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := id{appName: sess.AppName(), userID: sess.UserID(), sessionID: sess.ID()}
+	storedSession, ok := s.sessions.Get(key.Encode())
+	if !ok {
+		return nil, fmt.Errorf("session not found")
+	}
+
+	n := len(storedSession.events)
+	if start < 0 {
+		start = 0
+	}
+	if start > n {
+		start = n
+	}
+	if count < 0 {
+		count = 0
+	}
+	if start+count > n {
+		count = n - start
+	}
+
+	var newEvents []*Event
+	if fill != nil {
+		for ev := range fill.All() {
+			newEvents = append(newEvents, ev)
+		}
+	}
+
+	head := storedSession.events[:start]
+	tail := storedSession.events[start+count:]
+	result := make([]*Event, 0, len(head)+len(newEvents)+len(tail))
+	result = append(result, head...)
+	result = append(result, newEvents...)
+	result = append(result, tail...)
+
+	storedSession.events = result
+	storedSession.updatedAt = time.Now()
+
+	copiedSession := copySessionWithoutStateAndEvents(storedSession)
+	copiedSession.state = s.mergeStates(storedSession.state, storedSession.AppName(), storedSession.UserID())
+	copiedSession.events = slices.Clone(storedSession.events)
+
+	return copiedSession, nil
 }
 
 func (s *inMemoryService) AppendEvent(ctx context.Context, curSession Session, event *Event) error {
@@ -200,9 +289,6 @@ func (s *inMemoryService) AppendEvent(ctx context.Context, curSession Session, e
 	}
 	if event == nil {
 		return fmt.Errorf("event is nil")
-	}
-	if event.Partial {
-		return nil
 	}
 
 	sess, ok := curSession.(*session)
@@ -216,6 +302,76 @@ func (s *inMemoryService) AppendEvent(ctx context.Context, curSession Session, e
 	stored_session, ok := s.sessions.Get(sess.id.Encode())
 	if !ok {
 		return fmt.Errorf("session not found, cannot apply event")
+	}
+
+	// Check for partial accumulation
+	if len(stored_session.events) > 0 {
+		lastEvent := stored_session.events[len(stored_session.events)-1]
+		if lastEvent.Partial && lastEvent.Author == event.Author {
+			// Merge content
+			if event.Content != nil {
+				if lastEvent.Content == nil {
+					lastEvent.Content = event.Content
+				} else {
+					lastEvent.Content.Parts = append(lastEvent.Content.Parts, event.Content.Parts...)
+				}
+			}
+			// Merge StateDelta
+			for k, v := range event.Actions.StateDelta {
+				if lastEvent.Actions.StateDelta == nil {
+					lastEvent.Actions.StateDelta = make(map[string]any)
+				}
+				lastEvent.Actions.StateDelta[k] = v
+			}
+
+			// Update last event with new info
+			lastEvent.Timestamp = event.Timestamp
+			lastEvent.Partial = event.Partial
+
+			// Apply state delta to stored_session state
+			if len(event.Actions.StateDelta) > 0 {
+				appDelta, userDelta, sessionDelta := sessionutils.ExtractStateDeltas(event.Actions.StateDelta)
+				s.updateAppState(appDelta, curSession.AppName())
+				s.updateUserState(userDelta, curSession.AppName(), curSession.UserID())
+				for k, v := range sessionDelta {
+					if v == nil {
+						delete(stored_session.state, k)
+					} else {
+						stored_session.state[k] = v
+					}
+				}
+			}
+
+			// update the in-memory local session (best effort to keep it in sync)
+			if err := sess.appendEvent(event); err != nil {
+				return fmt.Errorf("fail to set state on appendEvent: %w", err)
+			}
+			// But since we merged, we actually want to update the *last* event in sess, not append new one?
+			// The `sess` object is what the user holds. `sess.events` is a slice.
+			// If we append, we duplicate the event.
+			// So we should NOT append if we merged.
+			// But we DO want to apply state changes.
+			// `sess.appendEvent` does both: updates state and appends event.
+			// Let's manually update state and NOT append.
+			processedEvent := trimTempDeltaState(event)
+			if err := updateSessionState(sess, processedEvent); err != nil {
+				return fmt.Errorf("error on updateSessionState: %w", err)
+			}
+
+			// Reflect the merge in sess.events
+			if len(sess.events) > 0 {
+				lastSessEvent := sess.events[len(sess.events)-1]
+				if lastSessEvent.ID == lastEvent.ID {
+					// It's the same event object (or copy), let's update it
+					lastSessEvent.Content = lastEvent.Content
+					lastSessEvent.Actions.StateDelta = lastEvent.Actions.StateDelta
+					lastSessEvent.Timestamp = lastEvent.Timestamp
+					lastSessEvent.Partial = lastEvent.Partial
+				}
+			}
+
+			return nil
+		}
 	}
 
 	// update the in-memory session

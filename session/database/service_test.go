@@ -691,7 +691,7 @@ func Test_databaseService_AppendEvent(t *testing.T) {
 			wantEventCount: 1,
 		},
 		{
-			name:  "partial events are not persisted",
+			name:  "partial events are persisted",
 			setup: serviceDbWithData,
 			session: &localSession{
 				appName:   "app1",
@@ -702,19 +702,27 @@ func Test_databaseService_AppendEvent(t *testing.T) {
 				ID:     "partial_event",
 				Author: "user",
 				LLMResponse: model.LLMResponse{
-					Partial: true, // This is the key field
+					Partial: true,
 				},
 			},
 			wantStoredSession: &localSession{
 				appName:   "app1",
 				userID:    "user1",
 				sessionID: "session1",
-				events:    []*session.Event{}, // No event should be stored
+				events: []*session.Event{
+					{
+						ID:     "partial_event",
+						Author: "user",
+						LLMResponse: model.LLMResponse{
+							Partial: true,
+						},
+					},
+				},
 				state: map[string]any{
 					"k1": "v1",
 				},
 			},
-			wantEventCount: 0, // Expect 0 events
+			wantEventCount: 1, // Expect 1 event
 		},
 	}
 	for _, tt := range tests {
@@ -882,6 +890,55 @@ func Test_databaseService_StateManagement(t *testing.T) {
 			t.Errorf("Expected 'sk' key in stored event, but was missing or wrong value")
 		}
 	})
+}
+
+func Test_databaseService_Clone(t *testing.T) {
+	s := emptyService(t)
+	ctx := t.Context()
+	created, err := s.Create(ctx, &session.CreateRequest{
+		AppName: "app", UserID: "user", SessionID: "s1", State: map[string]any{"k": "v"},
+	})
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+
+	cloned, err := s.Clone(ctx, created.Session)
+	if err != nil {
+		t.Fatalf("Clone failed: %v", err)
+	}
+
+	if cloned.ID() == created.Session.ID() {
+		t.Errorf("Cloned ID matches original")
+	}
+	// Verify state copied
+	val, err := cloned.State().Get("k")
+	if err != nil || val != "v" {
+		t.Errorf("State not copied correctly: %v", val)
+	}
+}
+
+func Test_databaseService_Splice(t *testing.T) {
+	s := emptyService(t)
+	ctx := t.Context()
+	created, _ := s.Create(ctx, &session.CreateRequest{AppName: "app", UserID: "user", SessionID: "s1"})
+	// Add events
+	// Use explicit timestamps to ensure ordering
+	s.AppendEvent(ctx, created.Session, &session.Event{ID: "1", Timestamp: time.Unix(1, 0)})
+	s.AppendEvent(ctx, created.Session, &session.Event{ID: "2", Timestamp: time.Unix(2, 0)})
+	s.AppendEvent(ctx, created.Session, &session.Event{ID: "3", Timestamp: time.Unix(3, 0)})
+
+	// Delete middle
+	spliced, err := s.Splice(ctx, created.Session, 1, 1, nil)
+	if err != nil {
+		t.Fatalf("Splice failed: %v", err)
+	}
+
+	if spliced.Events().Len() != 2 {
+		t.Errorf("Expected 2 events, got %d", spliced.Events().Len())
+	}
+	if spliced.Events().At(0).ID != "1" || spliced.Events().At(1).ID != "3" {
+		t.Errorf("Wrong events after splice")
+	}
 }
 
 func serviceDbWithData(t *testing.T) *databaseService {
