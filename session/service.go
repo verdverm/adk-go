@@ -28,17 +28,34 @@ type Service interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	Delete(context.Context, *DeleteRequest) error
 
+	// NOTE, my intention is to modify AppendEvent in my session/database implementation to support
+	// 'user' sent partial messages, to build up a payload to go with their next message.
+	// The idea is to collect user message parts and then include them in the next "real" AppendEvent.
+	// Much like how multiple function calls can be executed in one message
+	// 1. Coding assistant does work
+	// 2. User makes edits            <== these become the partial events (user tool calls)
+	// 3. User sends message,             the 'user' chat message becomes the last part, and does not have partial set
+	// ... we need something for this
+	// so AppendEvent will build up user message parts in the most recent 'user' event, until 'user' adds an event with !partial
+
 	// AppendEvent is used to append an event to a session, and remove temporary state keys from the event.
 	AppendEvent(context.Context, Session, *Event) error
 
-	// PrepareEvent is used to collect user message parts and then include them in the next AppendEvent.
-	// Much like how multiple function calls can be executed in one message
-	// 1. Coding assistant does work
-	// 2. User makes edits
-	// 3. User sends message
-	// ... we need something for this
-	// It can go both ways too, for accumulating agent produced events
-	PrepareEvent(context.Context, Session, *Event) error
+	// Clone returns a copy of this session with a new ID
+	// How this works is up to the implementation, some considerations
+	// - many-to-many session-event (so they can share a history i.e. mainly to support trees and threads)
+	// - if/how to track/manage lineage, where did we branch from & where is that stored on the new clone
+	// even without many-to-many, like the current session/database impln, we could still walk lineage via state deltas
+	Clone() (Session, error)
+
+	// Splice makes in-place modifications to the session
+	//   it is up to the user to manage state delta accumulation and handling (TODO, provide helpers)
+	// insert: (N, 0, event)  | (N, 0, events)
+	// delete: (N, 1, nil)    | (N, n, nil)
+	// replace: (N, 1, event) | (N, n, events)
+	// rewind: (len(session)-n, n, nil)
+	// no-op: (N, 0, ...)
+	Splice(start, count int, fill Events) (Session, error)
 }
 
 // InMemoryService returns an in-memory implementation of the session service.

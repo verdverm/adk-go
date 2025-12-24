@@ -194,10 +194,6 @@ func (s *inMemoryService) Delete(ctx context.Context, req *DeleteRequest) error 
 	return nil
 }
 
-func (s *inMemoryService) PrepareEvent(ctx context.Context, curSession Session, event *Event) error {
-	return s.AppendEvent(ctx, curSession, event)
-}
-
 func (s *inMemoryService) AppendEvent(ctx context.Context, curSession Session, event *Event) error {
 	if curSession == nil {
 		return fmt.Errorf("session is nil")
