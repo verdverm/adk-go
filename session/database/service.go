@@ -354,10 +354,6 @@ func (s *databaseService) Delete(ctx context.Context, req *session.DeleteRequest
 	})
 }
 
-func (s *databaseService) PrepareEvent(ctx context.Context, curSession session.Session, event *session.Event) error {
-	return s.AppendEvent(ctx, curSession, event)
-}
-
 func (s *databaseService) AppendEvent(ctx context.Context, curSession session.Session, event *session.Event) error {
 	if curSession == nil {
 		return fmt.Errorf("session is nil")
