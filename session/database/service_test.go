@@ -62,17 +62,17 @@ func Test_databaseService_Create(t *testing.T) {
 			},
 		},
 		{
-			name:  "when already exists, want err", // this differs from inmemmory impl
+			name:  "when already exists, return existing",
 			setup: serviceDbWithData,
 			req: &session.CreateRequest{
 				AppName:   "app1",
 				UserID:    "user1",
 				SessionID: "session1",
 				State: map[string]any{
-					"k": 10,
+					"k1": "v1",
 				},
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {

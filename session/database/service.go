@@ -435,18 +435,21 @@ func (s *databaseService) applyEvent(ctx context.Context, session *localSession,
 		// GORM's .Save() method will correctly perform an INSERT or UPDATE.
 		if len(appDelta) > 0 {
 			maps.Copy(storageApp.State, appDelta)
+			storageApp.State = filterMap(storageApp.State)
 			if err := tx.Save(&storageApp).Error; err != nil {
 				return fmt.Errorf("failed to save app state: %w", err)
 			}
 		}
 		if len(userDelta) > 0 {
 			maps.Copy(storageUser.State, userDelta)
+			storageUser.State = filterMap(storageUser.State)
 			if err := tx.Save(&storageUser).Error; err != nil {
 				return fmt.Errorf("failed to save user state: %w", err)
 			}
 		}
 		if len(sessionDelta) > 0 {
 			maps.Copy(storageSess.State, sessionDelta)
+			storageSess.State = filterMap(storageSess.State)
 			// The session state update will be saved along with the event timestamp update.
 		}
 

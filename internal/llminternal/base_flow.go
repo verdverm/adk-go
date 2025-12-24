@@ -409,7 +409,7 @@ func (f *Flow) handleFunctionCalls(ctx agent.InvocationContext, toolsDict map[st
 		// toolCtx := tool.
 		spans := telemetry.StartTrace(ctx, "execute_tool "+fnCall.Name)
 
-		fmt.Println("callTool:", fnCall.Name, fnCall.Args, toolCtx)
+		// fmt.Println("callTool:", fnCall.Name, fnCall.Args, toolCtx)
 		result := f.callTool(funcTool, fnCall.Args, toolCtx)
 
 		// TODO: agent.canonical_after_tool_callbacks

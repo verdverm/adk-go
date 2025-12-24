@@ -32,7 +32,11 @@ func (s TestState) Get(key string) (any, error) {
 }
 
 func (s TestState) Set(key string, val any) error {
-	s[key] = val
+	if val == nil {
+		delete(s, key)
+	} else {
+		s[key] = val
+	}
 	return nil
 }
 
