@@ -74,7 +74,7 @@ func (s *inMemoryService) Create(ctx context.Context, req *CreateRequest) (*Crea
 	val := &session{
 		id:        key,
 		state:     state,
-		updatedAt: time.Now(),
+		updatedAt: time.Now().UTC(),
 	}
 
 	s.sessions.Set(encodedKey, val)
@@ -215,7 +215,7 @@ func (s *inMemoryService) Clone(ctx context.Context, sess Session) (Session, err
 			userID:    sess.UserID(),
 			sessionID: newSessionID,
 		},
-		updatedAt: time.Now(),
+		updatedAt: time.Now().UTC(),
 		state:     maps.Clone(storedSession.state),
 		events:    slices.Clone(storedSession.events),
 	}
@@ -274,7 +274,7 @@ func (s *inMemoryService) Splice(ctx context.Context, sess Session, start, count
 	result = append(result, tail...)
 
 	storedSession.events = result
-	storedSession.updatedAt = time.Now()
+	storedSession.updatedAt = time.Now().UTC()
 
 	copiedSession := copySessionWithoutStateAndEvents(storedSession)
 	copiedSession.state = s.mergeStates(storedSession.state, storedSession.AppName(), storedSession.UserID())
