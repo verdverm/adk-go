@@ -133,7 +133,7 @@ func NewEvent(invocationID string) *Event {
 	return &Event{
 		ID:           uuid.NewString(),
 		InvocationID: invocationID,
-		Timestamp:    time.Now(),
+		Timestamp:    time.Now().UTC(),
 		Actions:      EventActions{StateDelta: make(map[string]any)},
 	}
 }

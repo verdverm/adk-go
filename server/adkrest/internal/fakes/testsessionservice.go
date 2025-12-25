@@ -189,4 +189,56 @@ func (s *FakeSessionService) AppendEvent(ctx context.Context, curSession session
 	return nil
 }
 
+func (s *FakeSessionService) Clone(ctx context.Context, sess session.Session) (session.Session, error) {
+	testSession, ok := sess.(*TestSession)
+	if !ok {
+		return nil, fmt.Errorf("invalid session type")
+	}
+
+	newID := testSession.Id
+	newID.SessionID = newID.SessionID + "-clone"
+
+	newState := make(TestState)
+	for k, v := range testSession.SessionState {
+		newState[k] = v
+	}
+
+	newEvents := make(TestEvents, len(testSession.SessionEvents))
+	copy(newEvents, testSession.SessionEvents)
+
+	clonedSession := &TestSession{
+		Id:            newID,
+		SessionState:  newState,
+		SessionEvents: newEvents,
+		UpdatedAt:     testSession.UpdatedAt,
+	}
+
+	s.Sessions[newID] = *clonedSession
+	return clonedSession, nil
+}
+
+func (s *FakeSessionService) Splice(ctx context.Context, sess session.Session, start, count int, fill session.Events) (session.Session, error) {
+	testSession, ok := sess.(*TestSession)
+	if !ok {
+		return nil, fmt.Errorf("invalid session type")
+	}
+
+	var fillEvents TestEvents
+	if fill != nil {
+		for i := 0; i < fill.Len(); i++ {
+			fillEvents = append(fillEvents, fill.At(i))
+		}
+	}
+
+	newEvents := append(TestEvents{}, testSession.SessionEvents[:start]...)
+	newEvents = append(newEvents, fillEvents...)
+	newEvents = append(newEvents, testSession.SessionEvents[start+count:]...)
+
+	testSession.SessionEvents = newEvents
+	testSession.UpdatedAt = time.Now()
+	s.Sessions[testSession.Id] = *testSession
+
+	return testSession, nil
+}
+
 var _ session.Service = (*FakeSessionService)(nil)

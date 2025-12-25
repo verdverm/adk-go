@@ -43,15 +43,16 @@ func (storageSession) TableName() string {
 	return "sessions"
 }
 
-// Helper to map from internal struct to GORM struct
+// createStorageSession translates a localSession to a storageSession.
 func createStorageSession(s *localSession) (*storageSession, error) {
+	now := time.Now().UTC()
 	return &storageSession{
 		UserID:     s.userID,
 		AppName:    s.appName,
 		ID:         s.sessionID,
 		State:      s.state,
-		CreateTime: time.Now(),
-		UpdateTime: time.Now(),
+		CreateTime: now,
+		UpdateTime: now,
 	}, nil
 }
 
