@@ -87,7 +87,7 @@ func TestAppendEventDelete(t *testing.T) {
 	if err != ErrStateKeyNotExist {
 		t.Errorf("expected ErrStateKeyNotExist after AppendEvent with foo=nil, got %v, %v", val, err)
 	}
-	
+
 	// Check if it's also deleted when we Get the session again
 	getResp, err := s.Get(ctx, &GetRequest{AppName: "app", UserID: "user", SessionID: "s1"})
 	if err != nil {

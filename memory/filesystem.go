@@ -24,8 +24,8 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/genai"
 	"google.golang.org/adk/session"
+	"google.golang.org/genai"
 )
 
 // FilesystemService returns a new filesystem-backed implementation of the memory service.

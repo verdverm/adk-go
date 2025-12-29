@@ -177,22 +177,22 @@ func (s *filesystemService) LoadFromDisk(ctx context.Context) error {
 		appName := parts[0]
 		userID := parts[1]
 		sessionID := parts[2]
-		
+
 		// Reconstruct filename from the rest (in case filename had slashes, though flatten strategy handles it via Join?)
 		// Wait, filepath.Join in Save uses path separators.
 		// If fileName had slashes "a/b.txt", Save joined `.../artifacts` + `a/b.txt.v1.json`.
 		// So it created `.../artifacts/a/b.txt.v1.json`.
 		// So `parts` will look like: ..., "artifacts", "a", "b.txt.v1.json".
 		// We need to join everything after "artifacts".
-		
+
 		rawFileName := filepath.Join(parts[4:]...)
-		
+
 		// Parse version and actual filename
 		matches := versionFileRegex.FindStringSubmatch(rawFileName)
 		if matches == nil {
 			return nil
 		}
-		
+
 		fileName := matches[1]
 		versionStr := matches[2]
 		version, err := strconv.ParseInt(versionStr, 10, 64)
