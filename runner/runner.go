@@ -169,10 +169,18 @@ func (r *Runner) Run(ctx context.Context, userID, sessionID string, msg *genai.C
 			UserContent: msg,
 			RunConfig:   &cfg,
 		})
+
 		ctx, err = r.appendMessageToSession(ctx, storedSession, msg, cfg.SaveInputBlobsAsArtifacts, r.pluginManager)
+		// userEvent, err := r.appendMessageToSession(ctx, session, msg, cfg.SaveInputBlobsAsArtifacts)
 		if err != nil {
 			yield(nil, err)
 			return
+		} else {
+			userEvent := ctx.Session().Events().At(0)
+			// yield the user event back for rendering/handling in clients
+			if !yield(userEvent, nil) {
+				return
+			}
 		}
 
 		pluginManager := r.pluginManager
@@ -220,6 +228,11 @@ func (r *Runner) Run(ctx context.Context, userID, sessionID string, msg *genai.C
 
 			// only commit non-partial event to a session service
 			if !event.LLMResponse.Partial {
+				if event.IsFinalResponse() {
+					// fmt.Println("FINAL")
+					event.LLMResponse.FinishReason = "STOP"
+					event.LLMResponse.TurnComplete = true
+				}
 				if err := r.sessionService.AppendEvent(ctx, storedSession, event); err != nil {
 					yield(nil, fmt.Errorf("failed to add event to session: %w", err))
 					return
