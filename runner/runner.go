@@ -176,7 +176,8 @@ func (r *Runner) Run(ctx context.Context, userID, sessionID string, msg *genai.C
 			yield(nil, err)
 			return
 		} else {
-			userEvent := ctx.Session().Events().At(0)
+			evts := ctx.Session().Events()
+			userEvent := evts.At(evts.Len() - 1)
 			// yield the user event back for rendering/handling in clients
 			if !yield(userEvent, nil) {
 				return
