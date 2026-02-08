@@ -101,11 +101,11 @@ func (f *Flow) Run(ctx agent.InvocationContext) iter.Seq2[*session.Event, error]
 					yield(nil, err)
 					return
 				}
-				if ev != nil {
-					// fmt.Println("event:", ev.Author, ev.Branch, ev.IsFinalResponse())
-					ev.LLMResponse.FinishReason = "STOP"
-					ev.LLMResponse.TurnComplete = true
-				}
+				// if ev != nil {
+				// 	// fmt.Println("event:", ev.Author, ev.Branch, ev.IsFinalResponse())
+				// 	ev.LLMResponse.FinishReason = "STOP"
+				// 	ev.LLMResponse.TurnComplete = true
+				// }
 				// forward the event first.
 				if !yield(ev, nil) {
 					return
